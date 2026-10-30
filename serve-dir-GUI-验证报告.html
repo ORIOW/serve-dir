@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>serve-dir GUI 工具 · 交付验证报告</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --ink: #1a1d21;
+    --ink-soft: #4d545b;
+    --ink-faint: #7a828a;
+    --rule: #d8dce0;
+    --rule-soft: #e7eaed;
+    --accent: #0e6b6b;
+    --accent-soft: #e3efef;
+    --pass: #1a7f37;
+    --fail: #c03028;
+    --warn: #a05a00;
+    --code-bg: #f1f3f4;
+    --sans: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", sans-serif;
+    --mono: "Cascadia Mono", "Consolas", "Sarasa Mono SC", monospace;
+    --nav-w: clamp(200px, 16vw, 250px);
+    --canvas: minmax(0, 1fr);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 15.5px; line-height: 1.65; }
+  ::selection { background: var(--accent-soft); }
+
+  .layout { display: grid; grid-template-columns: var(--nav-w) var(--canvas); min-height: 100vh; }
+  .sidebar { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; border-right: 1px solid var(--rule-soft); padding: 28px 18px 28px 24px; }
+  .sidebar .brand { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 22px; }
+  .sidebar nav a { display: block; padding: 5px 0; font-size: 13px; color: var(--ink-soft); text-decoration: none; border-left: 2px solid transparent; padding-left: 10px; margin-left: -12px; }
+  .sidebar nav a .no { font-family: var(--mono); font-size: 11px; color: var(--accent); margin-right: 7px; }
+  .sidebar nav a:hover { color: var(--accent); border-left-color: var(--accent); }
+  .sidebar .foot { margin-top: 30px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); line-height: 1.8; }
+
+  main { padding: 0 clamp(24px, 4vw, 64px) 80px; }
+  .inner { max-width: 1180px; margin: 0 auto; }
+  .prose-block { max-width: 65ch; }
+  .bleed { max-width: none; }
+
+  /* ---------- header ---------- */
+  header.doc { padding-top: 52px; }
+  .kicker { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-size: clamp(30px, 3.4vw, 42px); font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; margin: 14px 0 10px; }
+  .lede { font-size: 17px; color: var(--ink-soft); max-width: 62ch; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 26px; margin: 26px 0 0; padding: 14px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule-soft); }
+  .meta-row .item { font-size: 12.5px; color: var(--ink-faint); }
+  .meta-row .item b { display: block; font-weight: 400; font-family: var(--mono); font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+
+  /* ---------- verdict ---------- */
+  .verdict { margin: 34px 0 8px; padding: 22px 24px; border: 1px solid var(--rule); background: #f5f7f7; }
+  .verdict .tag { font-family: var(--mono); font-size: 12px; letter-spacing: 0.07em; color: var(--fail); text-transform: uppercase; }
+  .verdict p { margin-top: 8px; font-size: 15.5px; }
+  .verdict p + p { margin-top: 6px; }
+  .verdict .num { font-family: var(--mono); }
+
+  /* ---------- sections ---------- */
+  section { padding-top: 46px; }
+  .sec-head { display: flex; align-items: baseline; gap: 14px; border-bottom: 1px solid var(--rule); padding-bottom: 10px; margin-bottom: 18px; }
+  .sec-head .no { font-family: var(--mono); font-size: 13px; color: var(--accent); }
+  .sec-head h2 { font-size: 23px; font-weight: 600; letter-spacing: -0.01em; }
+  h3 { font-size: 16.5px; font-weight: 600; margin: 22px 0 8px; }
+  p + p { margin-top: 9px; }
+  p.prose, ul.prose { max-width: 65ch; }
+  ul.prose { padding-left: 1.3em; margin-top: 9px; }
+  ul.prose li + li { margin-top: 5px; }
+  .soft { color: var(--ink-soft); }
+  .fnote { font-size: 12.5px; color: var(--ink-faint); margin-top: 6px; max-width: 65ch; }
+
+  code { font-family: var(--mono); font-size: 0.88em; background: var(--code-bg); border: 1px solid var(--rule-soft); padding: 1px 5px; border-radius: 3px; }
+  pre { font-family: var(--mono); font-size: 12.8px; line-height: 1.55; background: var(--code-bg); border: 1px solid var(--rule-soft); padding: 14px 16px; overflow-x: auto; margin: 12px 0; }
+  pre code { background: none; border: none; padding: 0; font-size: inherit; }
+  pre .cm { color: var(--ink-faint); }
+  pre .hl { color: var(--fail); font-weight: 600; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 14px 0; }
+  th { text-align: left; font-weight: 600; font-size: 12px; letter-spacing: 0.04em; color: var(--ink-soft); border-bottom: 1px solid var(--rule); padding: 8px 10px; white-space: nowrap; }
+  td { border-bottom: 1px solid var(--rule-soft); padding: 8px 10px; vertical-align: top; }
+  tr:last-child td { border-bottom: 1px solid var(--rule); }
+  td.mono, .mono { font-family: var(--mono); font-size: 12.5px; }
+  .st { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.04em; white-space: nowrap; }
+  .st.pass { color: var(--pass); } .st.fail { color: var(--fail); } .st.part { color: var(--warn); }
+  td.evi { color: var(--ink-soft); font-size: 12.8px; }
+
+  .figure-cap { font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint); letter-spacing: 0.05em; margin: 4px 0 14px; }
+
+  /* fix list */
+  .fix { border-top: 1px solid var(--rule-soft); padding: 13px 0; }
+  .fix:first-of-type { border-top: none; }
+  .fix .fx-head { display: flex; gap: 12px; align-items: baseline; }
+  .fix .prio { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; padding: 1px 7px; border: 1px solid var(--rule); color: var(--ink-soft); white-space: nowrap; }
+  .fix .prio.p0 { color: var(--fail); border-color: var(--fail); }
+  .fix .prio.p1 { color: var(--warn); border-color: var(--warn); }
+  .fix .fx-title { font-weight: 600; font-size: 14.5px; }
+  .fix p { font-size: 13.8px; color: var(--ink-soft); margin-top: 5px; max-width: 70ch; }
+  .fix .acc { font-size: 12.5px; color: var(--ink-faint); margin-top: 4px; }
+  .fix .acc b { font-weight: 600; color: var(--ink-soft); }
+
+  footer.colophon { margin-top: 60px; padding-top: 16px; border-top: 1px solid var(--rule); font-size: 12px; color: var(--ink-faint); max-width: 65ch; }
+
+  @media (max-width: 980px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="brand">serve-dir · verification</div>
+    <nav>
+      <a href="#s0"><span class="no">00</span>结论速览</a>
+      <a href="#s1"><span class="no">01</span>需求逐条核对</a>
+      <a href="#s2"><span class="no">02</span>致命缺陷一：重生链</a>
+      <a href="#s3"><span class="no">03</span>致命缺陷二：自检误判</a>
+      <a href="#s4"><span class="no">04</span>功能性缺失</a>
+      <a href="#s5"><span class="no">05</span>其他确认缺陷</a>
+      <a href="#s6"><span class="no">06</span>SKILL.md 声明核对</a>
+      <a href="#s7"><span class="no">07</span>修复建议</a>
+      <a href="#s8"><span class="no">A</span>环境与方法</a>
+      <a href="#s9"><span class="no">B</span>实测记录</a>
+    </nav>
+    <div class="foot">
+      verified by AutoClaw<br>
+      2026-10-29 · run 92848376<br>
+      静态审读 + 动态实测
+    </div>
+  </aside>
+
+  <main>
+    <div class="inner">
+
+      <header class="doc" id="s0">
+        <div class="kicker">交付验证报告 · Verification Report</div>
+        <h1>serve-dir GUI 工具：验证不通过</h1>
+        <p class="lede">对 dsh 按「把 serve-dir 技能做成带 UI、无终端窗口的可运行小工具，支持文件多选下载与四项自定义」这一任务交付物（<code>scripts/serve_dir_gui.py</code>、<code>SKILL.md</code>）的独立验证结论与全部证据。</p>
+        <div class="meta-row">
+          <div class="item">验证日期<b>2026-10-29</b></div>
+          <div class="item">验证对象<b>serve_dir_gui.py · SKILL.md · serve_dir.py（基座）</b></div>
+          <div class="item">运行环境<b>Windows · Python 3.12.10（Tk 8.6）</b></div>
+          <div class="item">方法<b>静态审读 + 命令行/无头/进程级实测 + 独立复审</b></div>
+        </div>
+
+        <div class="verdict">
+          <div class="tag">结论 · 不可交付</div>
+          <p>7 项要求中 <span class="num">3 项满足、1 项部分满足、3 项未满足</span>；另存在 2 个使主流程完全不可用的致命缺陷。工具<b>当前不存在任何一条「能启动并维持服务」的完整路径</b>：文档推荐的启动命令触发无限进程重生链、窗口永不出现；唯一能打开窗口的 pythonw 路径上，「启动服务器」按钮又必然被错误的自检逻辑判为失败并自动停服。</p>
+          <p>本次验证中最重的一项代价：为肃清文档式启动残留的隐形进程链，先后执行 <span class="num">950+</span> 次 <code>taskkill /T /F</code>、跨约 <span class="num">80</span> 分钟仍无法根除，最终靠 12 秒断粮战术（瞬时隔离脚本文件）才肃清——该缺陷的实战危害以此为准。</p>
+        </div>
+      </header>
+
+      <section id="s1">
+        <div class="sec-head"><span class="no">01</span><h2>需求逐条核对</h2></div>
+        <div class="bleed">
+        <table>
+          <tr><th style="width:30px">#</th><th>原始要求</th><th style="width:110px">结论</th><th>证据（文件:行 / 实测）</th></tr>
+          <tr><td class="mono">1</td><td>带 UI 的可运行小工具</td><td class="st part">部分满足</td><td class="evi">界面控件完整（GUI:60–233），pythonw 直启可开窗（实测，附录 B.3）；但按文档命令启动 GUI 永不出现（缺陷一），且启动按钮不可用（缺陷二）</td></tr>
+          <tr><td class="mono">2</td><td>不显示 terminal / PowerShell 窗口</td><td class="st part">部分满足</td><td class="evi">pythonw 直启时确无控制台；但文档推荐命令 <code>python serve_dir_gui.py</code> 是坏的（缺陷一），且「打开浏览器」会闪 cmd 黑窗（GUI:239–243，静态推断）</td></tr>
+          <tr><td class="mono">3</td><td>文件多选</td><td class="st fail">未满足</td><td class="evi">GUI 无任何文件列表/多选控件；网页端列表页仅纯 <code>&lt;a&gt;</code> 链接；实测页面不含 checkbox/download 元素（B.2-B2）</td></tr>
+          <tr><td class="mono">4</td><td>下载按钮</td><td class="st fail">未满足</td><td class="evi">同上，GUI 与网页端均无任何下载入口（B.2-B2）</td></tr>
+          <tr><td class="mono">5</td><td>自定义 server 路径</td><td class="st pass">满足</td><td class="evi">目录输入框 + 浏览按钮（GUI:76–80），abspath 校验（GUI:179）；实测服务器按所选目录正确列表（B.2-A3）</td></tr>
+          <tr><td class="mono">6</td><td>端口可自定义，默认 8080</td><td class="st pass">满足</td><td class="evi"><code>IntVar(value=8080)</code>（GUI:64），Spinbox 1–65535（GUI:91–97）；实测自定义端口 18081 正常服务</td></tr>
+          <tr><td class="mono">7</td><td>允许 client 写（默认只读）</td><td class="st fail">未满足</td><td class="evi">复选框默认只读 ✓，但 <code>allow_write_var</code> 全文从未被消费；两文件均无 PUT/POST 处理器；标签自述「需修改 serve_dir.py」（GUI:104）——纯摆设；实测 PUT/POST 均 501（B.1、B.2-C1/D1）</td></tr>
+          <tr><td class="mono">8</td><td>pretty_server 样式开关</td><td class="st pass">满足</td><td class="evi">默认开启（GUI:66），据实切换 Pretty/PlainHandler（GUI:186）；实测样式化列表正常渲染</td></tr>
+        </table>
+        </div>
+        <p class="fnote">注：任务原文的「文件多选和下载按钮」无论理解为 GUI 内多选还是网页端（client 侧）多选下载，均无任何实现。「默认只读」的默认值本身正确，但开关无实效，故第 7 项判未满足。</p>
+      </section>
+
+      <section id="s2">
+        <div class="sec-head"><span class="no">02</span><h2>致命缺陷一：文档式启动触发无限进程重生链</h2></div>
+        <div class="prose-block">
+          <p><code>serve_dir_gui.py</code> 的 <code>main()</code>（283–297 行）意图是「检测到用 python.exe 启动就转交 pythonw.exe 以隐藏控制台」，但实际代码用 <code>sys.executable</code>——即<b>仍然是 python.exe</b>——重新拉起自己：</p>
+        </div>
+        <pre><code>def main():
+    <span class="cm"># Windows 下用 pythonw.exe 运行可隐藏控制台窗口</span>
+    if sys.platform == "win32":
+        if not sys.executable.lower().endswith("pythonw.exe"):
+            subprocess.Popen(
+                [sys.executable, "-u", __file__],   <span class="cm"># ← 仍是 python.exe，不是 pythonw.exe</span>
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            return                                   <span class="cm"># ← 永远到不了 tk.Tk()</span>
+    root = tk.Tk()
+    ...</code></pre>
+        <div class="prose-block">
+          <p>每个子进程与其父代完全相同（python.exe），再次命中同一分支、再拉起下一代后立刻退出——形成一条<b>无限接力链</b>，链上没有任何一代能到达 <code>tk.Tk()</code>。注释声称「由 pythonw.exe 隐藏控制台」，代码却从未引用 pythonw.exe。</p>
+          <h3>实测结果（三项独立实验）</h3>
+          <ul class="prose">
+            <li><b>文档命令启动</b>（<code>python serve_dir_gui.py</code>）：启动器约 1 秒退出、无任何窗口；随后 60 秒持续采样观测到 <span class="num">33 个不同 PID</span> 的接力进程，每约 2 秒一代，从不自行终止（附录 B.4）。</li>
+            <li><b>单代复现</b>（在已验证清零的环境中，按代码内部完全一致的形态启动一代）：16 秒内再产生 4 个新代；该链条此后至少存活 6 分钟仍在生成新代。全程 stderr 为 <span class="num">0 字节</span>——各代都是正常退出，重生是<b>设计使然，不是崩溃</b>。</li>
+            <li><b>pythonw 对照</b>（唯一可行路径）：单进程稳定挂驻 60 秒，窗口真实出现（标题 <code>serve-dir — 局域网文件服务器</code>，MainWindowHandle 非零），未点按钮时零监听端口（附录 B.3）——证明只有 pythonw 分支能到达 mainloop。</li>
+          </ul>
+          <h3>影响</h3>
+          <p>用户按 SKILL.md 推荐命令（<code>python skills/serve-dir/scripts/serve_dir_gui.py</code>）启动：控制台一闪即退，<b>永远没有界面</b>；同时一条隐形进程链常驻后台空转。肃清实测：先后累计 <span class="num">950+</span> 次 <code>taskkill /T /F</code>、约 80 分钟仍无法根除——每代 spawn 完下一代后数毫秒内自行退出，轮询式击杀几乎永远打在已退出的代际上（实测：查询列出的进程在下一次调用时已 <code>not found</code>）；期间还发现 WMI 会偶发把这些短命进程的命令行读成空串，导致按命令行过滤的常规杀法完全失明（附录 B.4）。最终靠 <b>12 秒断粮战术</b>（瞬时隔离脚本文件，使所有新 spawn 因「can't open file」瞬间失败）才根除——普通用户几乎不可能自己停掉它。</p>
+        </div>
+      </section>
+
+      <section id="s3">
+        <div class="sec-head"><span class="no">03</span><h2>致命缺陷二：启动自检必然误判，GUI 的核心按钮不可用</h2></div>
+        <div class="prose-block">
+          <p>即使用户有幸用 pythonw 打开窗口，「启动服务器」流程末端的自检（<code>_verify_server</code>，GUI:250–277）把「<b>根目录自身的名字</b>」当作特征串去列表页 HTML 里找：</p>
+        </div>
+        <pre><code>content = response.read().decode("utf-8", errors="ignore")
+<span class="hl">if os.path.basename(root) not in content:</span>
+    self.stop_server()
+    messagebox.showerror("错误", f"启动失败：返回的内容不包含目录 '{...}'...")</code></pre>
+        <div class="prose-block">
+          <p>但根目录的列表页只包含<b>子项的名字</b>和固定标题（<code>📁 文件列表</code>），永远不包含根目录自己的名字。因此该断言对绝大多数目录恒为假：服务器明明已经成功启动，GUI 却立即弹「启动失败」并自动把它停掉。</p>
+          <h3>实测结果</h3>
+          <ul class="prose">
+            <li>无头复刻同一断言：服务目录 <code>sd_verify_gui</code>（内含 one.txt / two.txt），列表页正常返回 200 且正确列出文件，但断言 <code>basename in content</code> 结果为 <span class="num">False</span>（B.2-B1）——即 GUI 必然误报启动失败并停服。</li>
+            <li>连带效应：端口被占用时，<code>ThreadingHTTPServer</code> 的 <code>allow_reuse_address=True</code> 在 Windows 上会<b>静默双绑定</b>（实测：新 server 无报错绑定成功、UI 显示「运行中」，但 GET 超时——连接仍被先绑定的旧监听者吞掉，B.2-E）。此时自检反而「碰巧」报错，错误信息却指向错误的原因。</li>
+          </ul>
+          <p><b>结论：GUI 不存在任何一条「启动 → 维持服务」的成功路径。</b></p>
+        </div>
+      </section>
+
+      <section id="s4">
+        <div class="sec-head"><span class="no">04</span><h2>功能性缺失：多选/下载为零，写开关是摆设</h2></div>
+        <h3>4.1 文件多选 + 下载按钮（要求 3、4）</h3>
+        <p class="prose">GUI 全文没有任何文件列表、复选框或下载相关代码；网页端 <code>PRETTY_HTML</code>（serve_dir.py:28–45、85–90）每行只有一个 <code>&lt;a&gt;</code> 链接。无头实测抓取页面检查：<code>page contains checkbox/download UI → False</code>。要求未实现。</p>
+        <h3>4.2 「允许 client 写入」开关（要求 7）</h3>
+        <p class="prose">复选框存在且默认只读（方向正确），但 <code>allow_write_var</code> 在两份文件中除 UI 绑定外<b>零消费</b>；服务端仅 <code>SimpleHTTPRequestHandler</code> 的 GET/HEAD，实测 PUT 与 POST 均返回 <span class="num">501</span>、磁盘无新文件（B.1、B.2）。控件标签自己写着「需修改 serve_dir.py」——这是把「未实现」直接发布给了最终用户。</p>
+      </section>
+
+      <section id="s5">
+        <div class="sec-head"><span class="no">05</span><h2>其他确认缺陷</h2></div>
+        <div class="bleed">
+        <table>
+          <tr><th>缺陷</th><th style="width:90px">依据</th><th>说明</th></tr>
+          <tr><td>端口占用静默双绑定</td><td class="st fail">实测</td><td class="evi">Windows 下 <code>allow_reuse_address=True</code> 允许与既有监听者双绑定：无报错、UI 显示「运行中」，流量仍归旧 server（B.2-E）。SKILL.md 的核心事故教训（防止误连别的目录/机器）在 GUI 里完全没有防线</td></tr>
+          <tr><td>「打开浏览器」闪 cmd 黑窗</td><td class="st part">静态推断</td><td class="evi"><code>shell=True</code> 的 <code>start</code> 调用（GUI:239–243）无 CREATE_NO_WINDOW，pythonw 下会新建控制台；一次还开本机+局域网两个标签页。应改用 <code>webbrowser.open</code></td></tr>
+          <tr><td>start 后立即同步验证的竞态</td><td class="st part">静态推断</td><td class="evi">线程 <code>start()</code> 后立即 urlopen（GUI:207），bind 未完成即误报失败，无重试</td></tr>
+          <tr><td>server 线程内 <code>os.chdir</code></td><td class="st part">静态推断</td><td class="evi">改全进程 CWD（GUI:36）：启动后相对路径语义漂移；Windows 下被共享目录因 CWD 占用无法删除/改名</td></tr>
+          <tr><td>端口输入非数字静默失败</td><td class="st part">静态推断</td><td class="evi">Spinbox 不拦手输，<code>IntVar.get()</code> 抛 TclError，pythonw 下无任何反馈（GUI:184）</td></tr>
+          <tr><td>stop 不彻底</td><td class="st part">静态推断</td><td class="evi"><code>stop()</code> 只 <code>shutdown()</code> 不 <code>server_close()</code>、不 join（GUI:39–41），监听 socket 靠 GC；且 <code>server is None</code> 时 stop 为空操作，存在启动后立刻停止的竞态</td></tr>
+          <tr><td>死代码 / 重复定义</td><td class="st part">静态</td><td class="evi">argparse、http.server、socket、PRETTY_HTML、human_size 等未用导入；<code>ThreadingHTTPServer</code> 重复定义（GUI:6–18、44–46）</td></tr>
+          <tr><td>列表页未转义 / 未 URL 编码（基座既有）</td><td class="st part">静态</td><td class="evi">文件名含 <code>#/?</code> 链接被截断；含 HTML 字符可注入客户端页面（serve_dir.py:85–90）——属基座既有问题，非本次引入</td></tr>
+          <tr><td>默认 0.0.0.0 + 默认共享 CWD</td><td class="st part">静态</td><td class="evi">host 硬编码（GUI:185），默认目录是进程 CWD——SKILL.md 自己警告过该目录含 API key 文件</td></tr>
+        </table>
+        </div>
+      </section>
+
+      <section id="s6">
+        <div class="sec-head"><span class="no">06</span><h2>SKILL.md 声明核对</h2></div>
+        <div class="bleed">
+        <table>
+          <tr><th>SKILL.md 的声明</th><th style="width:110px">与实际</th><th>说明</th></tr>
+          <tr><td>「GUI 启动（推荐）：<code>python …/serve_dir_gui.py</code>」</td><td class="st fail">不符</td><td class="evi">这正是触发无限重生链的命令；窗口永不出现。能用的只有正文一句带过的 pythonw 直启</td></tr>
+          <tr><td>「启动后不显示控制台窗口」</td><td class="st fail">不成立</td><td class="evi">推荐路径下 GUI 根本不出现；pythonw 路径下「打开浏览器」仍会闪黑窗</td></tr>
+          <tr><td>「GUI 会自动访问 … 验证 server 是否正常」</td><td class="st fail">不符</td><td class="evi">机制存在但判定逻辑错误（缺陷二），把正常启动判为失败</td></tr>
+          <tr><td>「GUI 关闭时 server 会自动停止」</td><td class="st pass">成立</td><td class="evi">daemon 线程（GUI:31），主进程退出即终止</td></tr>
+          <tr><td>GUI 配置说明（目录/端口/pretty）</td><td class="st part">不完整</td><td class="evi">未列「允许写入」复选框（因其未实现），更未提多选/下载（完全缺失）</td></tr>
+        </table>
+        </div>
+      </section>
+
+      <section id="s7">
+        <div class="sec-head"><span class="no">07</span><h2>修复建议（交 dsh 执行）</h2></div>
+        <div class="prose-block"><p class="soft">按优先级排列；每条附验收标准。P0 全部完成前不应再次交付。</p></div>
+        <div class="fix">
+          <div class="fx-head"><span class="prio p0">P0</span><span class="fx-title">消除无限重生链：真正切换到 pythonw，或直接交付 .pyw</span></div>
+          <p>判定分支内显式使用 <code>os.path.join(os.path.dirname(sys.executable), "pythonw.exe")</code> 拉起（并检查存在性），加环境变量哨兵防递归；或更简单——交付 <code>serve_dir_gui.pyw</code>（双击即无控制台），删除 main() 里的自我重启逻辑。</p>
+          <p class="acc"><b>验收：</b>以 PATH 上的 python.exe 执行脚本后，30 秒内进程数恒为 1、出现标题为「serve-dir — 局域网文件服务器」的窗口；60 秒采样无第二个 PID。</p>
+        </div>
+        <div class="fix">
+          <div class="fx-head"><span class="prio p0">P0</span><span class="fx-title">重写启动自检：断言必须指向「确实在服务所选目录」</span></div>
+          <p>改为：等待 bind（带 3 次 × 0.3s 重试）→ HTTP 200 → 校验页面包含 <code>os.listdir(root)</code> 的首个子项名（而非根目录自身名）；或校验响应条目数与 <code>len(listdir)</code> 一致。绑定失败要在线程外同步感知（先 bind 再交给线程 serve_forever），把真实错误弹给用户。</p>
+          <p class="acc"><b>验收：</b>对不含同名子项的目录点「启动服务器」，状态保持「运行中」且 curl 可取到正确列表；对被占用端口点启动，弹出真实原因并回到「未启动」。</p>
+        </div>
+        <div class="fix">
+          <div class="fx-head"><span class="prio p0">P0</span><span class="fx-title">写开关：要么实现，要么移除——不许保留欺骗性 UI</span></div>
+          <p>若实现：PUT/POST 处理器 + <code>serve_root</code> 路径逃逸防护（commonpath 校验）+ 大小上限；若不实现：删复选框，SKILL.md 同步标注「只读」。</p>
+          <p class="acc"><b>验收：</b>勾选后 PUT 落盘且路径逃逸被 403 拒绝；未勾选时 PUT 返回 403/501。</p>
+        </div>
+        <div class="fix">
+          <div class="fx-head"><span class="prio p1">P1</span><span class="fx-title">文件多选 + 下载按钮</span></div>
+          <p>建议做在网页端（client 才需要下载）：列表页加复选框 + 「下载所选」，服务端新增 <code>GET /__download?names=…</code> 流式打 zip（同样要路径逃逸防护）。GUI 内多选对服务器场景意义有限，如用户本意是 GUI 侧，请先与其确认。</p>
+          <p class="acc"><b>验收：</b>浏览器勾选多个文件（含中文名/空格）打包下载成功，zip 内路径不越界。</p>
+        </div>
+        <div class="fix">
+          <div class="fx-head"><span class="prio p1">P1</span><span class="fx-title">端口占用防线 + 打开浏览器 + 输入校验</span></div>
+          <p>绑定前探测目标端口并提示（或 <code>allow_reuse_address=False</code> + 捕获 WinError 10048 给出明确弹窗）；<code>open_browser</code> 改 <code>webbrowser.open</code>（消除黑窗与双标签）；端口输入 try/except TclError 给行内提示。</p>
+          <p class="acc"><b>验收：</b>预占端口后再点启动，得到「端口被占用」弹窗而非假「运行中」；pythonw 下点「打开浏览器」无黑窗。</p>
+        </div>
+        <div class="fix">
+          <div class="fx-head"><span class="prio p2">P2</span><span class="fx-title">卫生项</span></div>
+          <p><code>os.chdir</code> 改为在 Handler 内用绝对根映射路径；删除死导入与重复类；stop 中补 <code>server_close()</code> + join；目录框回车改为「应用输入」而非弹浏览框；SKILL.md 同步真实行为并明确「pythonw 是唯一启动路径」；<code>__pycache__</code> 移出技能目录。</p>
+        </div>
+      </section>
+
+      <section id="s8">
+        <div class="sec-head"><span class="no">A</span><h2>验证环境与方法</h2></div>
+        <ul class="prose">
+          <li><b>解释器甄别：</b>本机 PATH 上的 python 为 AutoClaw 自带 3.13.15，<b>无 tkinter</b>（<code>import tkinter → ModuleNotFoundError</code>）；实测统一改用 <code>py</code> 启动器默认的 Python 3.12.10（Tk 8.6，与交付物遗留的 cpython-312 缓存吻合）。两版解释器下 <code>py_compile</code> 均通过（exit 0）——问题全部在逻辑层，不在语法层。</li>
+          <li><b>测试口径：</b>临时目录 <code>%TEMP%\sd_verify*</code> 构造已知内容的测试目录；端口 18080–18083；每个实验前确认无同名进程残留，实验后彻底清理。</li>
+          <li><b>分工：</b>主体验证（静态审读 + CLI/无头/进程级实测 + 综合）由 AutoClaw 完成；「审阅者」子智能体做独立静态评审（结论同为不可交付，与本报告互相印证）；「执行者」子智能体做 pythonw 挂驻测试（B.3）。另一执行者子任务（重生链长时跟踪）执行失败，其残留进程一度干扰观测，已甄别并在 B.4 说明——该事故本身成为缺陷严重性的额外实证。</li>
+          <li><b>未覆盖项：</b>真实点击 GUI 按钮（Tk 自动化未做，相关逻辑以无头复刻代替）；多实例并发；审阅者提出的「黑窗」「竞态」等静态推断未逐一实测，均已在正文标注「静态推断」。</li>
+        </ul>
+      </section>
+
+      <section id="s9">
+        <div class="sec-head"><span class="no">B</span><h2>关键实测记录</h2></div>
+        <h3>B.1 CLI 版 serve_dir.py（基座功能完好）</h3>
+        <pre><code>GET /            -> 200; alpha.txt listed: True; beta.txt listed: True
+GET /alpha.txt   -> 200; body = AAA-content
+PUT /uploaded.txt  -> HTTP 501      <span class="cm"># 写请求被拒（符合只读设计）</span>
+POST /             -> HTTP 501
+PUT 后磁盘新建文件: False</code></pre>
+        <h3>B.2 GUI 无头逻辑测试（ServerThread + 自检复刻）</h3>
+        <pre><code>A1 server thread up: True          A2 GET / status: 200
+A3 one.txt/two.txt listed: True/True
+B1 _verify_server 断言 (basename in content): <span class="hl">False</span>   ← 必然误判
+B2 page contains checkbox/download UI: False          ← 多选/下载缺失
+C1 PUT status: 501   C2 磁盘无新文件   D1 POST status: 501
+A4 server stopped cleanly: True
+E  端口被占: ServerThread 绑定同一端口无任何错误: True（双绑定）
+   GET -> TimeoutError（流量仍归先绑定的旧监听者）</code></pre>
+        <h3>B.3 pythonw 直启（唯一可用路径，窗口正常）</h3>
+        <pre><code>PID 26348  T+10s / T+30s / T+60s 存活: True/True/True
+MainWindowTitle: serve-dir — 局域网文件服务器   MainWindowHandle: 8587900（非零）
+监听端口（未点按钮）: 无   清理: Stop-Process 后确认退出</code></pre>
+        <h3>B.4 无限重生链时间线</h3>
+        <div class="bleed">
+        <table>
+          <tr><th>实验</th><th>启动方式</th><th>观测</th></tr>
+          <tr><td class="mono">文档命令</td><td class="mono">python serve_dir_gui.py</td><td class="evi">启动器 ~1s 退出；60 秒内 <b>33 个不同 PID</b>（15:19:09–15:20:12），约 2 秒一代，采样存活数 0–2 波动，永不自行终止</td></tr>
+          <tr><td class="mono">单代复现</td><td class="mono">python.exe -u serve_dir_gui.py（无窗口）</td><td class="evi">根代 15:40:13 启动；16 秒内 4 个新代；链条至少存活至 16:12（≥30 分钟）；stderr 全程 0 字节（各代正常退出）</td></tr>
+          <tr><td class="mono">pythonw 对照</td><td class="mono">pythonw serve_dir_gui.py</td><td class="evi">60 秒单进程稳定，无重生——重生分支仅 python.exe 触发，与代码一致</td></tr>
+          <tr><td class="mono">清剿代价</td><td class="mono">taskkill /T /F 持续猎杀</td><td class="evi">57 + 58 + 截断轮（未计量）+ 后台轮 839 = <b>954+ 次确认击杀、约 80 分钟仍未能根除</b>；期间 WMI 偶发将短命代际命令行读为空串导致过滤失明，且每代 spawn 后数毫秒即退出——轮询式 taskkill 几乎永远打在尸体上（实测：查询刚列出的进程，下一次调用已 <code>not found</code>）</td></tr>
+          <tr><td class="mono">断粮根除</td><td class="mono">瞬时重命名脚本文件 12 秒</td><td class="evi">所有新 spawn 因「can't open file」瞬间失败，链条在一个代际内断绝；恢复文件名后 SHA256 前后一致（零改动）。三重验证 0/0/0，此后 7 分钟无任何复发（16:13–16:19:46）</td></tr>
+        </table>
+        </div>
+        <p class="fnote">注：839 次击杀中绝大多数是「与尸体赛跑」的无效击杀——恰是该缺陷难缠程度的直接量化。链条自首次文档式启动（14:51）起反复被观测存活，直至 16:12 断粮才彻底根除，总跨度约 80 分钟。</p>
+      </section>
+
+      <footer class="colophon">
+        验证执行：AutoClaw（主体验证与综合）· 审阅者（独立静态评审）· 执行者（pythonw 挂驻测试）<br>
+        本报告全部数据来自 2026-10-29 在交付机上的真实执行与静态审读；未实测项已逐条标注「静态推断」。临时测试产物位于 %TEMP%\sd_*，可随时删除。
+      </footer>
+
+    </div>
+  </main>
+</div>
+</body>
+</html>
