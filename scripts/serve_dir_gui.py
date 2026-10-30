@@ -439,25 +439,36 @@ class ServeDirGUI:
         self.root.focus_force()
 
     def _toggle_window(self):
+        """托盘左键：主窗口显隐切换；绝不触发退出（退出只在托盘右键菜单）。"""
         if self.root.state() == "withdrawn":
             self._show_window()
         else:
             self._on_window_close()
 
     def _on_window_close(self):
-        """窗口 ×：有实例在跑 → 收进托盘继续服务；否则直接退出。"""
-        if self.servers and self.tray is not None:
-            self.root.withdraw()
-            self._update_tray_status()
-            if not self._tray_hint_shown:
-                self._tray_hint_shown = True
-                self.tray.balloon("serve-dir",
-                                  "已收进系统托盘，服务器继续运行。\n右键托盘图标可打开主窗口或退出。")
-        else:
+        """窗口 ×：一律收进托盘继续后台服务，绝不退出进程。
+
+        「退出整个软件」只走托盘右键菜单的「退出」（_quit_from_tray）。
+        刻意降级：托盘不可用（self.tray is None，加载失败/非 Windows）时，
+        × 无处可收，退出是唯一合理行为——这是设计决定而非回退。
+        """
+        if self.tray is None:
             self._quit_from_tray()
+            return
+        self.root.withdraw()
+        self._update_tray_status()
+        if not self._tray_hint_shown:
+            self._tray_hint_shown = True
+            self.tray.balloon("serve-dir",
+                              "已收进系统托盘，后台继续运行。\n右键托盘图标可打开主窗口或退出。")
 
     def _quit_from_tray(self):
-        """真正退出：停全部实例 → 删托盘图标 → 结束消息泵 → 销毁窗口。"""
+        """真正退出：停全部实例 → 删托盘图标 → 结束消息泵 → 销毁窗口。
+
+        调用点（全项目唯一退出路径）：
+        1) 托盘右键菜单「退出」项（经 _post_to_main 回主线程）；
+        2) _on_window_close 的无托盘降级分支（self.tray is None，刻意设计）。
+        """
         self.stop_all()
         if self.tray is not None:
             try:
@@ -469,9 +480,6 @@ class ServeDirGUI:
             self.root.destroy()
         except tk.TclError:
             pass
-
-    def _on_close(self):
-        self._quit_from_tray()
 
 
 def main():

@@ -11,6 +11,10 @@ venv/
 *.lnk
 *.log
 
+# DSH ↔ AutoClaw dispatch handshake
+autoclaw_tasks/
+autoclaw_results/
+
 # Editor / OS
 .vscode/
 .idea/

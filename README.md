@@ -51,7 +51,7 @@ GUI options when **starting a new server**: directory (+ browse), port spinbox (
 
 **Startup**: the main thread binds synchronously (occupied/duplicate/invalid input pops a dialog immediately — no fake "running"), then a background thread serves and self-checks (non-blocking, direct connection, no system proxy): confirms the answer comes from this tool (`Server` header), compares item counts for pretty, probes the first entry for plain.
 
-**Tray**: closing the window (×) = hide to tray, servers keep running (bubble notification on first hide); left-click tray icon = show/hide main window; right-click menu = open main window / quit (quit stops all instances and removes the icon). The tooltip shows the live instance count. With no instances running, closing the window exits directly. If the tray is unavailable, it degrades gracefully to direct exit.
+**Tray**: closing the window (×) **always** hides to tray — with or without running servers — and the process never exits that way (bubble notification on first hide); left-click tray icon = show/hide main window; right-click menu = open main window / **quit** (quit is the only way to exit: it stops all instances and removes the icon). The tooltip shows the live instance count. If the tray is unavailable (load failure / non-Windows), closing the window deliberately falls back to direct exit — otherwise the window would vanish with no way to quit from the UI.
 
 ## Web features
 
