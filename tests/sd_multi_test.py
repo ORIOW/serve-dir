@@ -8,6 +8,11 @@ def check(name, cond, detail=''):
     if not cond:
         fails.append(name)
 
+# 本机测试请求一律直连：系统代理（如 macOS 上的 Clash）会把"连接拒绝"变成代理 502
+# 响应，令"端口已停/连不上"类断言误判（代理例外表里的 127.* 通配 urllib 不识别）。
+urllib.request.install_opener(urllib.request.build_opener(urllib.request.ProxyHandler({})))
+
+
 def http(method, url, data=None):
     req = urllib.request.Request(url, data=data, method=method)
     try:
@@ -120,12 +125,19 @@ check('M8 zip from 18093', st == 200 and zf.read('up2.txt') == b'UP2', (st,))
 app.tree.selection_set('18092', '18093')
 app.stop_all()
 check('M9 all stopped', len(app.servers) == 0 and not app.tree.get_children())
+# 跨平台"端口已释放"探测：connect 应被拒绝（= 无人监听）。
+# 原裸 bind() 探测在 macOS/Linux 会被 TIME_WAIT 误判为 EADDRINUSE（Errno 48）；
+# connect 不受 TIME_WAIT 影响。
 freed = True
 for p in (18091, 18092, 18093):
+    c = socket.socket(); c.settimeout(2)
     try:
-        s = socket.socket(); s.bind(('127.0.0.1', p)); s.close()
-    except OSError as e:
-        freed = False; print('rebind fail', p, e)
+        c.connect(('127.0.0.1', p))
+        freed = False; print('still listening', p)
+    except OSError:
+        pass
+    finally:
+        c.close()
 check('M9 ports freed', freed)
 check('M9 buttons disabled', str(app.stopall_btn['state']) == 'disabled')
 

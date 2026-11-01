@@ -23,6 +23,11 @@ def check(name, cond, detail=''):
     if not cond:
         fails.append(name)
 
+# 本机测试请求一律直连：系统代理（如 macOS 上的 Clash）会把"连接拒绝"变成代理 502
+# 响应，令"端口已停/连不上"类断言误判（代理例外表里的 127.* 通配 urllib 不识别）。
+urllib.request.install_opener(urllib.request.build_opener(urllib.request.ProxyHandler({})))
+
+
 def http(method, url, data=None):
     req = urllib.request.Request(url, data=data, method=method)
     try:
@@ -131,11 +136,16 @@ st, body = http('PUT', 'http://127.0.0.1:18093/via_gui2.txt', b'g2')
 check('T3 hot-toggle back 403', st == 403, st)
 app.tree.selection_set('18093'); app.stop_selected()
 check('T3 stopped clean', 18093 not in app.servers and len(app.servers) == 0)
+# 跨平台"端口已释放"探测：connect 应被拒绝（= 无人监听）。
+# 原裸 bind() 探测在 macOS/Linux 会被 TIME_WAIT 误判为 EADDRINUSE（Errno 48）。
+c = socket.socket(); c.settimeout(2)
 try:
-    s2 = socket.socket(); s2.bind(('127.0.0.1', 18093)); s2.close()
+    c.connect(('127.0.0.1', 18093))
+    check('T3 port freed after stop', False, 'still accepting connections')
+except OSError:
     check('T3 port freed after stop', True)
-except OSError as e:
-    check('T3 port freed after stop', False, e)
+finally:
+    c.close()
 
 app.port_var.set('abc'); app.start_server()
 check('T3 invalid port blocked', any(e[0] == 'err' and e[1] == '\u7aef\u53e3\u65e0\u6548' for e in errors), errors[-3:])

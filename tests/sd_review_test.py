@@ -7,6 +7,11 @@ def check(name, cond, detail=''):
     if not cond:
         fails.append(name)
 
+# 本机测试请求一律直连：系统代理（如 macOS 上的 Clash）会把"连接拒绝"变成代理 502
+# 响应，令"端口已停/连不上"类断言误判（代理例外表里的 127.* 通配 urllib 不识别）。
+urllib.request.install_opener(urllib.request.build_opener(urllib.request.ProxyHandler({})))
+
+
 def http(method, url, data=None):
     req = urllib.request.Request(url, data=data, method=method)
     try:
