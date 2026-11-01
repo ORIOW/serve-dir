@@ -58,9 +58,12 @@ if (-not (Test-Path $exe)) { throw "Build did not produce $exe" }
 Write-Host "Built: $exe ($((Get-Item $exe).Length) bytes)"
 
 # --- Optional zip (contents of the onedir folder, exe at the zip root) -----
+# NOTE: the variable is $zipPath (not $zip) on purpose — PowerShell variable names are
+# case-insensitive, so $zip would collide with the [switch]$Zip parameter above and
+# assigning a string path to it fails with "cannot convert String to SwitchParameter".
 if ($Zip) {
-    $zip = Join-Path $root "dist\serve_dir_gui-win64.zip"
-    if (Test-Path $zip) { Remove-Item -Force $zip }
-    Compress-Archive -Path "$root\dist\serve_dir_gui\*" -DestinationPath $zip
-    Write-Host "Zipped: $zip ($((Get-Item $zip).Length) bytes)"
+    $zipPath = "$root\dist\serve_dir_gui-win64.zip"
+    if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
+    Compress-Archive -Path "$root\dist\serve_dir_gui\*" -DestinationPath $zipPath
+    Write-Host "Zipped: $zipPath ($((Get-Item $zipPath).Length) bytes)"
 }
