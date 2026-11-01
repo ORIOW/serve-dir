@@ -21,8 +21,10 @@ autoclaw_results/
 Thumbs.db
 .DS_Store
 
-# 本地打包产物（scripts/build_macos_app.sh 可重新生成）
+# 本地打包产物（scripts/build_macos_app.sh / build_windows_exe.ps1 可重新生成）
 dist/
+build/
+*.spec
 
 # DSH 交付快照（macOS 适配已合并入库，本地保留作验收参考）
 serve-dir-macos-verify/

@@ -15,6 +15,7 @@ scripts/serve_dir.py        # CLI 版（GUI 复用其全部服务端逻辑）
 scripts/serve_dir_gui.py    # GUI 主程序
 scripts/serve_dir_gui.pyw   # 双击入口（无控制台）
 scripts/win_tray.py         # 纯 ctypes 托盘图标辅助
+scripts/build_windows_exe.ps1  # 构建 Windows onedir exe（PyInstaller）
 SKILL.md                    # agent 侧技能参考
 tests/                      # 回归测试驱动（见下文）
 serve-dir-GUI-验证报告.html  # GUI 交付验证报告
@@ -45,6 +46,7 @@ python scripts/serve_dir.py --dir "<目录>" [--port 8080] [--host 0.0.0.0] [--p
 | 双击入口（推荐） | 双击 `scripts/serve_dir_gui.pyw` | 无 |
 | 显式 pythonw | `pythonw scripts/serve_dir_gui.py` | 无 |
 | 普通 python | `python scripts/serve_dir_gui.py` | 有，但会自动转交 pythonw |
+| Windows exe（免装 Python） | 运行发布包 onedir 构建里的 `serve_dir_gui.exe`（GitHub Releases），或用 `scripts/build_windows_exe.ps1` 本地构建 | 无 |
 | macOS | `python3 scripts/serve_dir_gui.py`；或在 Finder 双击 `scripts/serve_dir_gui.command`（首次先 `chmod +x scripts/serve_dir_gui.command`） | 有（Terminal 窗口） |
 
 「启动新服务器」时生效的 GUI 选项：目录（+ 浏览）、端口 Spinbox（1–65535，非数字/越界拦截）、允许 client 写入、使用 pretty 样式列表。
@@ -117,7 +119,8 @@ macOS 上：Windows 托盘套件（`sd_tray_test.py`、`sd_tray_pt.py`、`sd_clo
 
 ## 已知限制
 
-- GUI 未做记住上次配置；未打包 exe；无开机自启。
+- GUI 未做记住上次配置；无开机自启。
+- **Windows 托盘图标在部分系统上可能不出现**——例如无头/沙箱会话，或 `Shell_NotifyIconW(NIM_ADD)` 被拦截的环境。此时点窗口 × 会**直接退出**（而不是收进看不见的托盘，刻意的降级分支，见 `serve_dir_gui.py:476-478`）；文件服务器与其余 GUI 功能一切正常。
 - Windows 上快速「停止 → 重启」可能遇到 TIME_WAIT 占用（独占绑定的设计取舍）；macOS/Linux 停止后可立即同端口重启。
 - 托盘右键菜单未在实机做过人工确认。
 

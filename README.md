@@ -17,6 +17,7 @@ scripts/win_tray.py         # Pure-ctypes tray icon helper (Windows)
 scripts/mac_tray.py         # macOS menu-bar icon helper (pyobjc/AppKit)
 scripts/serve_dir_gui.command  # macOS double-click entry (Terminal launcher)
 scripts/build_macos_app.sh  # Build dist/ServeDir.app — no-Terminal macOS launcher
+scripts/build_windows_exe.ps1  # Build the Windows onedir exe (PyInstaller)
 SKILL.md                    # Agent-facing skill reference
 tests/                      # Regression drivers (see below; sd_macos_check.py = macOS acceptance)
 serve-dir-GUI-验证报告.html  # GUI delivery verification report
@@ -47,6 +48,7 @@ Starting prints both the local and LAN URLs plus the write state. If the port is
 | Double-click entry (recommended) | Double-click `scripts/serve_dir_gui.pyw` | none |
 | Explicit pythonw | `pythonw scripts/serve_dir_gui.py` | none |
 | Plain python | `python scripts/serve_dir_gui.py` | appears, but auto-re-execs to pythonw when found |
+| Windows exe (no Python needed) | Run `serve_dir_gui.exe` from a released onedir build (GitHub Releases), or build locally with `scripts/build_windows_exe.ps1` | none |
 
 GUI options when **starting a new server**: directory (+ browse), port spinbox (1–65535, invalid input blocked), allow client writes, pretty listing toggle.
 
@@ -92,7 +94,8 @@ Expected: `FAILED: none` for every suite. Temporary artifacts go to `%TEMP%\sd_*
 
 ## Known limitations
 
-- No remembered last configuration in the GUI; not packaged as an .exe; no autostart.
+- No remembered last configuration in the GUI; no autostart.
+- **The Windows tray icon may not appear on some systems** — e.g. headless/sandboxed sessions, or where `Shell_NotifyIconW(NIM_ADD)` is blocked. In that case closing the window (×) exits the app directly instead of hiding to the tray (a deliberate fallback, `serve_dir_gui.py:476-478`); the file server and every other GUI feature work normally.
 - A fast stop → restart can hit the TIME_WAIT occupation (a deliberate trade-off for exclusive binding).
 - Tray right-click menu has not been manually verified on a real machine.
 
