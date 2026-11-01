@@ -409,22 +409,33 @@ class ServeDirGUI:
     # ---------- 系统托盘 ----------
 
     def _setup_tray(self):
-        if sys.platform != "win32":
-            return
         try:
-            from win_tray import TrayIcon
-            self.tray = TrayIcon(
-                tooltip="serve-dir · 0 个服务器运行中",
-                status_fn=lambda: (f"{len(self.servers)} 个服务器运行中" if self.servers
-                                   else "未运行任何服务器"),
-                icon_path=sys.executable,
-                on_left_click=lambda: self._post_to_main(self._toggle_window),
-                menu=(("打开主窗口", lambda: self._post_to_main(self._show_window)),
-                      ("退出", lambda: self._post_to_main(self._quit_from_tray))),
-            )
-            self.tray.start()
+            if sys.platform == "win32":
+                from win_tray import TrayIcon
+                self.tray = TrayIcon(
+                    tooltip="serve-dir · 0 个服务器运行中",
+                    status_fn=lambda: (f"{len(self.servers)} 个服务器运行中" if self.servers
+                                       else "未运行任何服务器"),
+                    icon_path=sys.executable,
+                    on_left_click=lambda: self._post_to_main(self._toggle_window),
+                    menu=(("打开主窗口", lambda: self._post_to_main(self._show_window)),
+                          ("退出", lambda: self._post_to_main(self._quit_from_tray))),
+                )
+                self.tray.start()
+            elif sys.platform == "darwin":
+                from mac_tray import MacTray
+                self.tray = MacTray(
+                    tooltip="serve-dir · 0 个服务器运行中",
+                    icon_path=None,
+                    on_left_click=lambda: self._post_to_main(self._toggle_window),
+                    menu=(("打开主窗口", lambda: self._post_to_main(self._show_window)),
+                          ("退出", lambda: self._post_to_main(self._quit_from_tray))),
+                )
+                self.tray.start()
+            else:
+                self.tray = None  # 其它平台：无托盘/菜单栏
         except Exception:
-            self.tray = None  # 托盘不可用不影响主功能
+            self.tray = None  # 托盘/菜单栏不可用不影响主功能
 
     def _update_tray_status(self):
         if self.tray is not None:
@@ -446,12 +457,22 @@ class ServeDirGUI:
             self._on_window_close()
 
     def _on_window_close(self):
-        """窗口 ×：一律收进托盘继续后台服务，绝不退出进程。
-
-        「退出整个软件」只走托盘右键菜单的「退出」（_quit_from_tray）。
-        刻意降级：托盘不可用（self.tray is None，加载失败/非 Windows）时，
-        × 无处可收，退出是唯一合理行为——这是设计决定而非回退。
+        """窗口 ×：
+        - macOS：一律隐藏到 Dock（菜单栏图标仍在），绝不退出——即使菜单栏
+          图标不可用（pyobjc 未装）也只隐藏，不退出；退出只走菜单栏「退出」。
+        - Windows：有托盘 → 收托盘；托盘不可用（加载失败）→ 刻意降级为退出
+          （设计决定：无托盘则窗口隐藏后用户失去唯一入口，无法从界面退出）。
+        「退出整个软件」的常规入口只有托盘/菜单栏右键菜单的「退出」。
         """
+        if sys.platform == "darwin":
+            self.root.withdraw()
+            self._update_tray_status()
+            if self.tray is not None and not self._tray_hint_shown:
+                self._tray_hint_shown = True
+                self.tray.balloon("serve-dir",
+                                  "已隐藏到 Dock，服务器继续运行。\n通过菜单栏图标可打开主窗口或退出。")
+            return
+        # Windows
         if self.tray is None:
             self._quit_from_tray()
             return
@@ -488,7 +509,24 @@ def main():
     旧版缺陷：在 python.exe 下用 sys.executable 转发自身 → 子代再次命中同一分支 →
     无限重生链。现改为：仅在 python.exe 下显式寻找 pythonw.exe 转交一次，
     并用环境变量哨兵兜底防递归；找不到 pythonw 时就地运行（带控制台，功能不受影响）。
+    macOS 同理：若解释器同目录有 pythonw/pythonw3（python.org 包自带）则转交一次
+    以脱离终端，找不到就就地运行——两种平台都绝不会无限重生。
     """
+    if sys.platform == "darwin":
+        # 仅在交互终端里启动时才转交 pythonw 脱离终端；从 ServeDir.app
+        # （LaunchServices）启动时 stdin 非 tty，本进程已是 LSUIElement 代理
+        # 应用，转交反而会以普通应用身份冒出「Python」Dock 图标。
+        if os.environ.get(RELAUNCH_SENTINEL) != "1" and sys.stdin.isatty():
+            script = os.path.abspath(__file__)
+            for name in ("pythonw", "pythonw3"):
+                pythonw = os.path.join(os.path.dirname(sys.executable), name)
+                if os.path.isfile(pythonw):
+                    env = dict(os.environ, **{RELAUNCH_SENTINEL: "1"})
+                    subprocess.Popen([pythonw, script], env=env,
+                                     start_new_session=True,
+                                     cwd=os.path.dirname(script))
+                    return
+            # 找不到 pythonw：就地运行（前台，功能完整）
     if sys.platform == "win32" and not sys.executable.lower().endswith("pythonw.exe"):
         if os.environ.get(RELAUNCH_SENTINEL) != "1":
             script = os.path.abspath(__file__)
@@ -504,6 +542,13 @@ def main():
                 return
             # 找不到 pythonw：就地运行（保留控制台，但功能完整）
     root = tk.Tk()
+    if sys.platform == "darwin":
+        try:  # 代理应用化：不出现「Python」Dock 图标（常驻入口是菜单栏助手）
+            from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
+            NSApplication.sharedApplication().setActivationPolicy_(
+                NSApplicationActivationPolicyAccessory)
+        except Exception:
+            pass  # 无 pyobjc：仅多显示一个 Dock 图标，功能不受影响
     ServeDirGUI(root)
     root.mainloop()
 

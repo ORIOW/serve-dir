@@ -13,9 +13,12 @@ Open any local directory as a LAN-accessible HTTP file server — from a single 
 scripts/serve_dir.py        # CLI version (the GUI reuses all of its server logic)
 scripts/serve_dir_gui.py    # GUI main program
 scripts/serve_dir_gui.pyw   # Double-click entry point (no console)
-scripts/win_tray.py         # Pure-ctypes tray icon helper
+scripts/win_tray.py         # Pure-ctypes tray icon helper (Windows)
+scripts/mac_tray.py         # macOS menu-bar icon helper (pyobjc/AppKit)
+scripts/serve_dir_gui.command  # macOS double-click entry (Terminal launcher)
+scripts/build_macos_app.sh  # Build dist/ServeDir.app — no-Terminal macOS launcher
 SKILL.md                    # Agent-facing skill reference
-tests/                      # Regression drivers (see below)
+tests/                      # Regression drivers (see below; sd_macos_check.py = macOS acceptance)
 serve-dir-GUI-验证报告.html  # GUI delivery verification report
 ```
 

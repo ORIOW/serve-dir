@@ -9,7 +9,9 @@
 #   - 上传仅当 allow_write 开启（CLI --allow-write / GUI 勾选），否则 PUT 一律 403；
 #   - 所有客户端路径经 realpath + commonpath 校验，越界（../、盘符、绝对路径）一律拒绝；
 #   - 单次上传上限 MAX_UPLOAD_BYTES，超限 413；
-#   - Windows 上服务器套接字设置 SO_EXCLUSIVEADDRUSE，杜绝双绑定抢流量。
+#   - 端口绑定按平台区分：Windows 用独占绑定（SO_EXCLUSIVEADDRUSE）杜绝双绑定抢流量，
+#     代价是 TIME_WAIT 内重启失败；非 Windows（macOS/Linux）用 allow_reuse_address=True，
+#     停止后可立即同端口重启。
 
 import argparse
 import html
@@ -346,11 +348,19 @@ class PlainHandler(ServeDirHandler):
 
 class ThreadingHTTPServer(socketserver.ThreadingTCPServer):
     daemon_threads = True
-    # Windows: 不再使用 SO_REUSEADDR（它允许双绑定抢流量），改用独占绑定。
-    allow_reuse_address = False
+    # 端口复用语义按平台区分：
+    # - Windows：allow_reuse_address=False（不设 SO_REUSEADDR）+ SO_EXCLUSIVEADDRUSE，
+    #   杜绝双绑定抢流量；代价是停止后 TIME_WAIT（约 1–4 分钟）内同端口重启会报占用。
+    # - macOS/Linux：allow_reuse_address=True（socketserver 默认语义），停止后可立即
+    #   同端口重启，TIME_WAIT 不阻碍（对防双绑定无影响——Unix 的 SO_REUSEADDR 不会
+    #   与另一个活动监听者同时成功绑定）。
+    if sys.platform == "win32":
+        allow_reuse_address = False
+    else:
+        allow_reuse_address = True
 
     def server_bind(self):
-        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):  # 仅 Windows 生效
+        if sys.platform == "win32" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):  # 仅 Windows
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         super().server_bind()
 
