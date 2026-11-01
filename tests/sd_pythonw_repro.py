@@ -1,6 +1,6 @@
-import os, sys, time, urllib.request
+import os, sys, tempfile, time, urllib.request
 
-LOG = os.path.join(os.environ.get("TEMP", "/tmp"), "sd_pythonw_repro.log")
+LOG = os.path.join(tempfile.gettempdir(), "sd_pythonw_repro.log")
 log = open(LOG, "w", encoding="utf-8")
 def p(*a):
     log.write(" ".join(str(x) for x in a) + "\n"); log.flush()
@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.abspath("scripts"))
 import tkinter as tk
 import serve_dir_gui
 
-td = os.path.join(os.environ["TEMP"], "sd_review_test", "plaindir")
+td = os.path.join(tempfile.gettempdir(), "sd_review_test", "plaindir")
 if not os.path.isdir(td):
     td = os.getcwd()
 p("serve dir:", td, "exists:", os.path.isdir(td))

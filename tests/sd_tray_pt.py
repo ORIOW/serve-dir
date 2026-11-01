@@ -1,6 +1,6 @@
-import ctypes, os, sys, time, urllib.request
+import ctypes, os, sys, tempfile, time, urllib.request
 
-LOG = os.path.join(os.environ.get("TEMP", "/tmp"), "sd_tray_pt.log")
+LOG = os.path.join(tempfile.gettempdir(), "sd_tray_pt.log")
 log = open(LOG, "w", encoding="utf-8")
 def p(*a):
     log.write(" ".join(str(x) for x in a) + "\n"); log.flush()
@@ -8,9 +8,14 @@ def p(*a):
 sys.path.insert(0, os.path.abspath("scripts"))
 import tkinter as tk
 import serve_dir_gui
+
+if sys.platform != "win32":
+    print("SKIP: Windows-only tray tests on " + sys.platform)
+    sys.exit(0)
+
 import win_tray
 
-td = os.path.join(os.environ["TEMP"], "sd_tray_pt")
+td = os.path.join(tempfile.gettempdir(), "sd_tray_pt")
 os.makedirs(td, exist_ok=True)
 open(os.path.join(td, "real.txt"), "wb").write(b"REAL")
 p("stderr:", sys.stderr)

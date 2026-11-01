@@ -5,7 +5,8 @@
 - **浏览 / 下载**：样式化列表（默认）或朴素原生列表，支持子目录导航。
 - **多选打包下载**：网页端勾选文件/文件夹后点「下载所选」，服务端从 `/__download?names=…` 流式打 zip。
 - **可选写入**：开启后 client 可用 `PUT` 上传（`curl -T file http://<host>:<port>/name.txt`）。**默认只读**，带路径逃逸防护与单次 1 GiB 上限。
-- **GUI 小工具**：可**同时运行多个 server**（不同路径/端口），无控制台窗口，可收进系统托盘长期驻留。
+- **GUI 小工具**：可**同时运行多个 server**（不同路径/端口），无控制台窗口，可长期驻留——Windows 收进系统托盘，macOS 隐藏到 Dock 并驻留菜单栏图标。
+- **跨平台**：Windows 10/11，以及 macOS 26（Tahoe，arm64）与一般 macOS（Python 3.9+，建议 3.12+）。
 
 ## 文件清单
 
@@ -44,6 +45,7 @@ python scripts/serve_dir.py --dir "<目录>" [--port 8080] [--host 0.0.0.0] [--p
 | 双击入口（推荐） | 双击 `scripts/serve_dir_gui.pyw` | 无 |
 | 显式 pythonw | `pythonw scripts/serve_dir_gui.py` | 无 |
 | 普通 python | `python scripts/serve_dir_gui.py` | 有，但会自动转交 pythonw |
+| macOS | `python3 scripts/serve_dir_gui.py`；或在 Finder 双击 `scripts/serve_dir_gui.command`（首次先 `chmod +x scripts/serve_dir_gui.command`） | 有（Terminal 窗口） |
 
 「启动新服务器」时生效的 GUI 选项：目录（+ 浏览）、端口 Spinbox（1–65535，非数字/越界拦截）、允许 client 写入、使用 pretty 样式列表。
 
@@ -52,6 +54,29 @@ python scripts/serve_dir.py --dir "<目录>" [--port 8080] [--host 0.0.0.0] [--p
 **启动行为**：主线程**同步绑定**端口（占用/重复/非法输入立即弹窗，不再假"运行中"）→ 后台线程服务 → 后台自检（不阻塞界面、直连不走系统代理）：确认应答来自本工具（Server 头），pretty 比对条目数、plain 探测首个条目。
 
 **托盘**：关闭窗口（×）**一律**收进系统托盘——无论有没有实例在跑，都不会因此退出进程（首次收起有气泡提示）；左键托盘图标＝显示/隐藏主窗口；右键菜单＝打开主窗口 / **退出**（退出是唯一的退出途径：会停止全部实例并删除图标）。托盘提示实时显示运行中的实例数。托盘不可用（加载失败/非 Windows）时，× 刻意降级为直接退出——否则窗口消失后将无法从界面退出。
+
+## macOS
+
+除 Windows 10/11 外，serve-dir 同样支持 macOS：macOS 26（Tahoe，arm64）与一般 macOS（Python 3.9+，建议 3.12+）。
+
+### 安装前置条件
+
+- **Python 3.12+ 且带 tkinter**：python.org 安装包自带 tkinter；Homebrew Python 需另装，例如 `brew install python-tk@3.12`（版本号与所用 Python 对应）。
+- **菜单栏图标需要 pyobjc**：`pip3 install pyobjc`（或最小集 `pip3 install pyobjc-framework-Cocoa`）；Homebrew Python 受 PEP 668 管理时可加 `--user` 或改用 venv。
+- 不装 pyobjc 也能跑 GUI，只是没有菜单栏图标。
+
+### 用法
+
+```bash
+python3 scripts/serve_dir_gui.py                          # GUI
+python3 scripts/serve_dir.py --dir "<目录>" --port 18199  # CLI
+```
+
+可选 Finder 入口：在 Finder 双击 `scripts/serve_dir_gui.command`（首次先执行 `chmod +x scripts/serve_dir_gui.command`）。
+
+**菜单栏图标**（Windows 托盘的 macOS 对应物）：**单击**图标弹出菜单，含「显示 / 隐藏主窗口」「打开主窗口」「退出」；tooltip/标题实时显示运行中的实例数；「退出」会停止全部实例并删除图标。pyobjc 缺失时图标不出现，GUI 其余功能完全可用。
+
+**关窗语义（隐藏到 Dock）**：关闭窗口（×）＝隐藏到 Dock，**不是退出**，server 继续运行；退出只走菜单栏菜单的「退出」。与 Windows 不同：Windows 上 × 一律收进托盘、托盘不可用时刻意降级为直接退出；macOS 上关窗**永远不会**退出进程。
 
 ## 网页端功能
 
@@ -62,6 +87,7 @@ python scripts/serve_dir.py --dir "<目录>" [--port 8080] [--host 0.0.0.0] [--p
 
 - 套接字使用 Windows `SO_EXCLUSIVEADDRUSE` 独占绑定：**不可能出现双绑定抢流量**（旧版风险已消除）。
 - 代价：刚停止后立即重启可能遇到 TIME_WAIT（约 2–4 分钟）报占用。等一会或换端口；GUI/CLI 都会给出明确错误而非静默异常。
+- macOS/Linux 套接字改用 `allow_reuse_address=True`：停止后可立即用同一端口重启，无 TIME_WAIT 等待窗口。
 - 占用探测以「能否建立连接」为准（真实监听者才接受连接，TIME_WAIT 不误报）。
 
 ## 测试
@@ -81,6 +107,8 @@ python tests/sd_pythonw_repro.py # 复现 pythonw 下 stderr=None 的 bug
 
 > 托盘套件需要真实的交互式 Windows 会话：在无头/沙箱进程中 `Shell_NotifyIconW(NIM_ADD)` 会返回 0，因此托盘检查可能因环境原因失败，即使代码本身正确。
 
+macOS 上：Windows 托盘套件（`sd_tray_test.py`、`sd_tray_pt.py`、`sd_close_tray_test.py`）打印 SKIP 并以退出码 0 结束；`sd_fix_test.py`（35 项）、`sd_multi_test.py`（23 项）、`sd_review_test.py`（15 项）可直接运行（P3 锁文件用例在非 Windows 上 SKIP）；macOS 专属验收脚本为 `tests/sd_macos_check.py`。
+
 ## 安全提示
 
 - **绑定 `0.0.0.0` 即向局域网开放该目录**——分享前确认目录内没有密钥或个人文件。
@@ -90,7 +118,7 @@ python tests/sd_pythonw_repro.py # 复现 pythonw 下 stderr=None 的 bug
 ## 已知限制
 
 - GUI 未做记住上次配置；未打包 exe；无开机自启。
-- 快速「停止 → 重启」可能遇到 TIME_WAIT 占用（独占绑定的设计取舍）。
+- Windows 上快速「停止 → 重启」可能遇到 TIME_WAIT 占用（独占绑定的设计取舍）；macOS/Linux 停止后可立即同端口重启。
 - 托盘右键菜单未在实机做过人工确认。
 
 ## 许可证

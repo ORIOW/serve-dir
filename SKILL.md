@@ -1,6 +1,6 @@
 ---
 name: serve-dir
-description: "Open a local directory as a LAN-accessible HTTP file server — styled listing with multi-select zip download, optional PUT upload (read-only by default), or plain native listing — using fixed scripts in this skill, no per-directory copies. Use when the user wants to share a folder over the local network (e.g. 'serve this folder', 'open a python server on this dir', 'let other machines fetch/upload these files'). GUI tool included (no console window). Handles detecting and stopping any existing server on the target port before starting the new one. Applies on Windows host. Do NOT use for production hosting or authenticated/access-controlled sharing."
+description: "Open a local directory as a LAN-accessible HTTP file server — styled listing with multi-select zip download, optional PUT upload (read-only by default), or plain native listing — using fixed scripts in this skill, no per-directory copies. Use when the user wants to share a folder over the local network (e.g. 'serve this folder', 'open a python server on this dir', 'let other machines fetch/upload these files'). GUI tool included (no console window). Handles detecting and stopping any existing server on the target port before starting the new one. Applies on Windows 10/11 and macOS hosts. Do NOT use for production hosting or authenticated/access-controlled sharing."
 ---
 
 # serve-dir — 单脚本目录文件服务器
@@ -12,7 +12,7 @@ description: "Open a local directory as a LAN-accessible HTTP file server — st
 - **浏览/下载**：样式化列表（默认）或朴素原生列表；子目录导航。
 - **多选打包下载**：网页端勾选多个文件/文件夹 → 「下载所选」→ 服务端 `/__download?names=…` 流式打 zip。
 - **可选写入**：开启后 client 可用 `PUT` 上传（`curl -T 文件 URL`），默认**只读**；路径逃逸防护 + 单次上限 1 GiB。
-- **GUI 小工具**：图形界面，支持**同时运行多个 server**（不同路径/端口），无控制台窗口，可收进系统托盘长期驻留。
+- **GUI 小工具**：图形界面，支持**同时运行多个 server**（不同路径/端口），无控制台窗口，可长期驻留——Windows 收进系统托盘，macOS 隐藏到 Dock 并驻留菜单栏图标。
 
 ## 适用判断
 
@@ -67,7 +67,44 @@ GUI 参数（「启动新服务器」时生效于新实例）：
 
 启动行为：主线程**同步绑定**端口（占用/重复/非法输入立即弹窗，不再假"运行中"）→ 后台线程服务 → 后台自检（不阻塞界面、直连不走系统代理）：确认应答来自本工具（Server 头），pretty 比对条目数、plain 探测首个条目。
 
-托盘：关闭窗口（×）**一律**收进系统托盘——无论有没有实例在跑，都不会因此退出进程（首次收起有气泡提示）；左键托盘图标＝显示/隐藏主窗口；右键菜单＝打开主窗口 / **退出**（退出是唯一的退出途径：会停止全部实例并删除图标）。托盘提示实时显示运行中的实例数。托盘不可用（非 Windows/加载失败）时，× 刻意降级为直接退出——否则窗口消失后将无法从界面退出。
+托盘：关闭窗口（×）**一律**收进系统托盘——无论有没有实例在跑，都不会因此退出进程（首次收起有气泡提示）；左键托盘图标＝显示/隐藏主窗口；右键菜单＝打开主窗口 / **退出**（退出是唯一的退出途径：会停止全部实例并删除图标）。托盘提示实时显示运行中的实例数。托盘不可用（非 Windows/加载失败）时，× 刻意降级为直接退出——否则窗口消失后将无法从界面退出。macOS 无系统托盘，对应物是菜单栏图标（见下文「macOS」），语义不同：macOS 上关窗只隐藏到 Dock，永不因关窗退出。
+
+## macOS
+
+除 Windows 10/11 外，本技能同样支持 macOS：macOS 26（Tahoe，arm64）与一般 macOS（Python 3.9+，建议 3.12+）。
+
+### 前置条件
+
+- **Python 3.12+ 且带 tkinter**：python.org 安装包自带 tkinter；Homebrew Python 需另装，例如 `brew install python-tk@3.12`（版本号与所用 Python 对应）。
+- **菜单栏图标需要 pyobjc**：`pip3 install pyobjc`（或最小集 `pip3 install pyobjc-framework-Cocoa`）；Homebrew Python 受 PEP 668 管理时可加 `--user` 或改用 venv。
+- 不装 pyobjc 也能跑 GUI，只是没有菜单栏图标。
+
+### 入口
+
+| 方式 | 命令 / 操作 |
+|---|---|
+| GUI（终端启动） | `python3 skills/serve-dir/scripts/serve_dir_gui.py` |
+| Finder 双击（可选） | 双击 `scripts/serve_dir_gui.command`；首次使用前 `chmod +x scripts/serve_dir_gui.command` |
+| CLI | `python3 skills/serve-dir/scripts/serve_dir.py --dir "<目录>" --port 18199` |
+
+### 菜单栏图标（Windows 托盘的 macOS 对应物）
+
+- **单击**菜单栏图标弹出菜单：「显示 / 隐藏主窗口」「打开主窗口」「退出」。
+- tooltip/标题实时显示运行中的实例数。
+- 「退出」停止全部实例并删除菜单栏图标。
+- pyobjc 缺失时菜单栏图标不出现，GUI 其余功能完全可用。
+
+### 关窗行为
+
+- 关闭窗口（×）＝**隐藏到 Dock**，不是退出，server 继续运行。
+- 退出只走菜单栏菜单里的「退出」。
+- 与 Windows 的差异：Windows 上托盘不可用时 × 刻意降级为退出；macOS 上**永远不会**因关窗退出。
+
+### 测试注意事项
+
+- Windows 托盘套件 `sd_tray_test.py`、`sd_tray_pt.py`、`sd_close_tray_test.py` 在 macOS 上打印 SKIP 并以退出码 0 结束。
+- `sd_fix_test.py`（35 项）、`sd_multi_test.py`（23 项）、`sd_review_test.py`（15 项）在 macOS 上可直接运行（P3 锁文件用例在非 Windows 上 SKIP）。
+- macOS 专属验收脚本：`tests/sd_macos_check.py`。
 
 ## 网页端功能
 
@@ -95,6 +132,7 @@ GUI 参数（「启动新服务器」时生效于新实例）：
 
 - 服务器套接字使用 Windows `SO_EXCLUSIVEADDRUSE` 独占绑定：**不可能出现双绑定抢流量**（旧版风险已消除）。
 - 代价：刚停止后立即重启可能遇到 TIME_WAIT（约 2–4 分钟）报占用。等一会或换端口；GUI/CLI 都会给出明确错误而非静默异常。
+- macOS/Linux 套接字改用 `allow_reuse_address=True`：停止后可立即用同一端口重启，无 TIME_WAIT 等待窗口。
 - 占用探测以「能否建立连接」为准（真实监听者才接受连接，TIME_WAIT 不误报）。
 
 ## 事故教训（务必遵守）
