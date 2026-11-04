@@ -16,6 +16,7 @@ scripts/serve_dir_gui.py    # GUI 主程序
 scripts/serve_dir_gui.pyw   # 双击入口（无控制台）
 scripts/win_tray.py         # 纯 ctypes 托盘图标辅助
 scripts/build_windows_exe.ps1  # 构建 Windows onedir exe（PyInstaller）
+scripts/serve_dir_mcp.py    # 零依赖 stdio MCP server（4 工具）
 SKILL.md                    # agent 侧技能参考
 tests/                      # 回归测试驱动（见下文）
 serve-dir-GUI-验证报告.html  # GUI 交付验证报告
@@ -56,6 +57,26 @@ python scripts/serve_dir.py --dir "<目录>" [--port 8080] [--host 0.0.0.0] [--p
 **启动行为**：主线程**同步绑定**端口（占用/重复/非法输入立即弹窗，不再假"运行中"）→ 后台线程服务 → 后台自检（不阻塞界面、直连不走系统代理）：确认应答来自本工具（Server 头），pretty 比对条目数、plain 探测首个条目。
 
 **托盘**：关闭窗口（×）**一律**收进系统托盘——无论有没有实例在跑，都不会因此退出进程（首次收起有气泡提示）；左键托盘图标＝显示/隐藏主窗口；右键菜单＝打开主窗口 / **退出**（退出是唯一的退出途径：会停止全部实例并删除图标）。托盘提示实时显示运行中的实例数。托盘不可用（加载失败/非 Windows）时，× 刻意降级为直接退出——否则窗口消失后将无法从界面退出。
+
+## MCP server
+
+`scripts/serve_dir_mcp.py` 是零依赖 stdio MCP server（JSON-RPC 2.0 over stdio，纯标准库），把 CLI 能力暴露为 4 个工具。在任意 MCP 客户端（如 DSH 的 dsh-skill-mcp-panel）注册：
+
+| 字段 | 值 |
+|---|---|
+| 调用方式 | STDIO |
+| 命令 | `python`（建议填 `python.exe` 绝对路径，避免宿主进程 PATH 差异） |
+| 参数 | `scripts/serve_dir_mcp.py` 的绝对路径（每行一个参数，这里只有一行） |
+| 环境变量 / 工作目录 | 不需要——脚本按自身路径定位 `serve_dir.py`，不依赖 cwd |
+
+| 工具 | 参数 | 作用 |
+|---|---|---|
+| `serve_dir_serve` | `dir`（必填）、`port`（默认 8080）、`allow_write`、`plain` | 后台启动 `serve_dir.py` 子进程，返回 URL 与 pid |
+| `serve_dir_stop` | `pid` 或 `port` | 停止已登记实例 |
+| `serve_dir_list` | 无 | 列出运行中的实例 |
+| `serve_dir_status` | `pid` 或 `port` | 存活检查 + HTTP 探测（未登记的端口按外部实例探测） |
+
+说明：实例寿命独立于 MCP 会话——停用/重启 MCP server 不会杀掉它启动的实例；日志全部走 stderr（stdout 只走协议）；登记表是内存态，MCP 进程重启后清空。
 
 ## macOS
 

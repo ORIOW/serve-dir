@@ -26,6 +26,7 @@ description: "Open a local directory as a LAN-accessible HTTP file server — st
 skills/serve-dir/scripts/serve_dir.py        # CLI 版（GUI 复用其全部服务端逻辑）
 skills/serve-dir/scripts/serve_dir_gui.py    # GUI 版主程序
 skills/serve-dir/scripts/serve_dir_gui.pyw   # GUI 双击入口（无控制台）
+skills/serve-dir/scripts/serve_dir_mcp.py    # 零依赖 stdio MCP server（4 工具）
 ```
 
 ## CLI 启动
@@ -110,6 +111,17 @@ GUI 参数（「启动新服务器」时生效于新实例）：
 
 - **多选下载**：列表页每行带复选框；「全选」+「下载所选（N）」→ `GET /__download?names=<相对路径>&names=…`（URL 编码，可重复参数）；目录会递归打包；服务端做路径逃逸校验（`../`、绝对路径、跨盘一律拒绝）。
 - **上传**（开启写入后）：`PUT /<相对路径>`，请求体即文件内容；父目录不存在会自动创建（限服务目录内）；越界 403、超限 413、成功 201。例：`curl -T 本地文件.txt http://<host>:<port>/上传名.txt`
+
+## MCP server（可选）
+
+`scripts/serve_dir_mcp.py` 是零依赖 stdio MCP server（纯标准库，JSON-RPC 2.0 over stdio），把 CLI 暴露为 4 个工具：
+
+- `serve_dir_serve{dir, port=8080, allow_write=false, plain=false}`：后台启动 `serve_dir.py` 子进程，返回 URL 与 pid（3 秒自检，超时则杀掉新进程并报错，不留孤儿）。
+- `serve_dir_stop{pid|port}`：停止已登记实例。
+- `serve_dir_list{}`：列出运行中的实例。
+- `serve_dir_status{pid|port}`：存活 + HTTP 探测（未登记的端口按外部实例探测）。
+
+注册（如 DSH 的 dsh-skill-mcp-panel）：STDIO；命令 = `python`（建议绝对路径）；参数 = `serve_dir_mcp.py` 绝对路径；无环境变量、无 cwd 依赖（脚本按自身路径定位 `serve_dir.py`）。实例寿命独立于 MCP 会话（停用/重启 MCP server 不杀实例）；登记表内存态，MCP 进程重启后清空。agent 会话内直接走下面的 CLI 标准流程更简单；MCP 适合跨工具/常驻调用的场景。
 
 ## 标准流程（agent 每次都走）
 

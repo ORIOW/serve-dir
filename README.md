@@ -18,6 +18,7 @@ scripts/mac_tray.py         # macOS menu-bar icon helper (pyobjc/AppKit)
 scripts/serve_dir_gui.command  # macOS double-click entry (Terminal launcher)
 scripts/build_macos_app.sh  # Build dist/ServeDir.app — no-Terminal macOS launcher
 scripts/build_windows_exe.ps1  # Build the Windows onedir exe (PyInstaller)
+scripts/serve_dir_mcp.py    # Zero-dependency stdio MCP server (4 tools)
 SKILL.md                    # Agent-facing skill reference
 tests/                      # Regression drivers (see below; sd_macos_check.py = macOS acceptance)
 serve-dir-GUI-验证报告.html  # GUI delivery verification report
@@ -57,6 +58,26 @@ GUI options when **starting a new server**: directory (+ browse), port spinbox (
 **Startup**: the main thread binds synchronously (occupied/duplicate/invalid input pops a dialog immediately — no fake "running"), then a background thread serves and self-checks (non-blocking, direct connection, no system proxy): confirms the answer comes from this tool (`Server` header), compares item counts for pretty, probes the first entry for plain.
 
 **Tray**: closing the window (×) **always** hides to tray — with or without running servers — and the process never exits that way (bubble notification on first hide); left-click tray icon = show/hide main window; right-click menu = open main window / **quit** (quit is the only way to exit: it stops all instances and removes the icon). The tooltip shows the live instance count. If the tray is unavailable (load failure / non-Windows), closing the window deliberately falls back to direct exit — otherwise the window would vanish with no way to quit from the UI.
+
+## MCP server
+
+`scripts/serve_dir_mcp.py` is a zero-dependency stdio MCP server (JSON-RPC 2.0 over stdio, standard library only) that exposes the CLI as four tools. Register it in any MCP client (e.g. DSH's dsh-skill-mcp-panel):
+
+| Field | Value |
+|---|---|
+| Transport | stdio |
+| Command | `python` (absolute path to `python.exe` recommended, to avoid host PATH differences) |
+| Args | absolute path to `scripts/serve_dir_mcp.py` (one arg per line) |
+| Env / working dir | none required — the script locates `serve_dir.py` relative to its own path |
+
+| Tool | Args | Effect |
+|---|---|---|
+| `serve_dir_serve` | `dir` (required), `port` (default 8080), `allow_write`, `plain` | starts `serve_dir.py` as a background child process; returns the URL and pid |
+| `serve_dir_stop` | `pid` or `port` | stops a registered instance |
+| `serve_dir_list` | — | lists running instances |
+| `serve_dir_status` | `pid` or `port` | liveness check + HTTP probe (unregistered ports are probed as external instances) |
+
+Notes: instance lifetime is independent of the MCP session — stopping or restarting the MCP server does not kill instances it started; all logs go to stderr (stdout carries protocol only); the registry is in-memory and cleared when the MCP process restarts.
 
 ## Web features
 
